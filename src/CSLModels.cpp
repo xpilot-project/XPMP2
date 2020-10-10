@@ -34,8 +34,8 @@ namespace XPMP2 {
 
 /// The file holding package information
 #define XSB_AIRCRAFT_TXT        "xsb_aircraft.txt"
-#define DEBUG_XSBACTXT_READ     "Processing %s"
-#define INFO_XSBACTXT_DONE      "Read %3d aircraft %s from %s"
+#define DEBUG_PROCESSING_FILE   "Processing %s"
+#define INFO_ACTXT_DONE         "Read %3d aircraft %s from %s"
 #define WARN_XSBACTXT_IGNORED   "Ignored %d aircraft %s due to outdated format (OBJECT or AIRCRAFT) from %s"
 #define INFO_TOTAL_NUM_MODELS   "Total number of known models now is %lu"
 #define WARN_NO_XSBACTXT_FOUND  "No xsb_aircraft.txt found"
@@ -56,6 +56,19 @@ namespace XPMP2 {
 #define DEBUG_MATCH_INPUT       "MATCH INPUT: Type=%s (WTC=%s,Class=%s,Related=%d), Airline=%s, Livery=%s"
 #define DEBUG_MATCH_FOUND       "MATCH FOUND: Type=%s (WTC=%s,Class=%s,Related=%d), Airline=%s, Livery=%s / Quality = %d -> %s"
 #define DEBUG_MATCH_NOTFOUND    "MATCH ERROR: Using a RANDOM model: %s %s %s - model %s"
+
+// World Traffic definitions
+#define WT_FOLDER_OBJ           "AircraftObjects"
+#define WT_FOLDER_TXT           "AircraftTypes"
+#define WT_PACKAGE_NAME         "__WT%d__"          ///< Package name for WT folders, %d will be replaced with `gNumWTPkgs`
+static int gNumWTPkgs = 0;                          ///< Counts World Traffic packages to be able to define unique package names
+
+#define ERR_WT_FOLDERS_ERR      "Expected folder '" WT_FOLDER_TXT "' is empty or doesn't exist."
+#define ERR_WT_TXT_NOT_FOUND    ".txt file not found"
+#define WARN_WT_TXT_NO_AC       ".txt file provided no BaseAircraft type"
+#define ERR_WT_OBJ_NOT_FOUND    ".obj file not found"
+#define WARN_WT_WT0_SKIPPED     ".wt0 file skipped"
+#define WARN_WT_WT0_SKIPPED_NUM "%d .wt0 files %s skipped, can only process .obj files in %s"
 
 /// The ids of our garbage collection flight loop callback
 XPLMFlightLoopID gGarbageCollectionID = nullptr;
@@ -684,6 +697,32 @@ const char* CSLModelsFindPkgs (const std::string& _path,
         // Found a "xsb_aircraft.txt"! Let's process this path then!
         paths.push_back(_path);
         return CSLModelsReadPkgId(_path);
+    } else {
+        // Let's see if we can treat see folder as a World Traffic folder,
+        // which requires to sub folders, "AircraftObjects" and "AircraftTypes".
+        // Are there directory entries by that name?
+        if (std::find(files.cbegin(), files.cend(), WT_FOLDER_OBJ) != files.cend() &&
+            std::find(files.cbegin(), files.cend(), WT_FOLDER_TXT) != files.cend())
+        {
+            // Are these actually folders?
+            if (IsDir(TOPOSIX(_path + XPLMGetDirectorySeparator()[0] + WT_FOLDER_OBJ)) &&
+                IsDir(TOPOSIX(_path + XPLMGetDirectorySeparator()[0] + WT_FOLDER_TXT)))
+            {
+                // Then we treat this as a World Traffic folder
+                // To be able to tell that this path is a WT path we already add the dir separator
+                paths.push_back(_path + XPLMGetDirectorySeparator()[0]);
+                // And add a package to our list of packages with a computed name
+                char buf[10];
+                snprintf(buf, sizeof(buf), WT_PACKAGE_NAME, ++gNumWTPkgs);
+                auto p = glob.mapCSLPkgs.insert(std::make_pair(buf, _path + XPLMGetDirectorySeparator()[0]));
+                if (!p.second) {                // not inserted, ie. package name existed already?
+                    LOG_MSG(logWARN, WARN_DUP_PKG_NAME, buf, StripXPSysDir(_path).c_str(), p.first->second.c_str());
+                } else {
+                    LOG_MSG(logDEBUG, "Added World Traffic package '%s' from %s", buf, StripXPSysDir(_path).c_str());
+                }
+                return "";
+            }
+        }
     }
     
     // Are we still allowed to dig deeper into the folder hierarchy?
@@ -909,7 +948,7 @@ const char* CSLModelsProcessAcFile (const std::string& path)
         return WARN_NO_XSBACTXT_FOUND;
     
     // read the file line by line
-    LOG_MSG(logDEBUG, DEBUG_XSBACTXT_READ, StripXPSysDir(xsbName).c_str());
+    LOG_MSG(logDEBUG, DEBUG_PROCESSING_FILE, StripXPSysDir(xsbName).c_str());
     for (int lnNr = 1; fAc; ++lnNr)
     {
         // read a line, trim it (remove whitespace at both ends)
@@ -995,7 +1034,7 @@ const char* CSLModelsProcessAcFile (const std::string& path)
     if (!acRead.empty()) {
         std::string acList;
         int totAcRead = StrCntString(acRead, acList);
-        LOG_MSG(logINFO, INFO_XSBACTXT_DONE, totAcRead, acList.c_str(),
+        LOG_MSG(logINFO, INFO_ACTXT_DONE, totAcRead, acList.c_str(),
                 StripXPSysDir(xsbName).c_str());
     }
     
@@ -1025,6 +1064,191 @@ const char* CSLModelsProcessAcFile (const std::string& path)
     return "";
 }
 
+//
+// MARK: World Traffic folders
+//
+
+/// Process one World Traffic aircraft
+/// @param _pathWT Path to the base World Traffic folder
+/// @param _fileNr Identifies which file in the folder is being processed, for logging purposes only
+/// @param _cslId The model's name, serves as base for both the .txt and the .obj file names
+/// @param[Out] _icaoAcType Returns the ICAO a/c type of the processed a/c
+/// @returns "" on success and a error text otherwise
+const char* CSLModelProcessWTFile (const std::string& _pathWT, int _fileNr,
+                                   const std::string& _cslId,
+                                   std::string& _icaoAcType)
+{
+    CSLModel csl;               // Here we collect the CSL model
+    CSLModel::MatchCritTy crit; // Here we collect the match criteria
+    bool bStarted = false;      // have seen the "START" mark in the file already?
+    
+    // Full paths to our files
+    const std::string pathObj = _pathWT + WT_FOLDER_OBJ + XPLMGetDirectorySeparator()[0] + _cslId + ".obj";
+    const std::string pathTxt = _pathWT + WT_FOLDER_TXT + XPLMGetDirectorySeparator()[0] + _cslId + ".txt";
+
+    // open the .txt file
+    std::ifstream fAc (TOPOSIX(pathTxt));
+    if (!fAc || !fAc.is_open()) {
+        LOG_MSG(logERR, ERR_WT_TXT_NOT_FOUND ": %s", StripXPSysDir(pathTxt).c_str());
+        return ERR_WT_TXT_NOT_FOUND;
+    }
+
+    // We assume the ICAO type is given away in the file name...that is not always fully true, though
+    // TODO: Need a better way of deriving the exact a/c type...BaseFile has the IATA code but not the ICAO code
+    _icaoAcType = _cslId.substr(0, _cslId.find('_'));
+
+    // read the file line by line
+    for (int lnNr = 1; fAc; ++lnNr)
+    {
+        // read a line, trim it (remove whitespace at both ends)
+        std::string ln;
+        safeGetline(fAc, ln);
+        trim(ln);
+        if (ln.empty()) continue;           // skip over empty lines
+
+        // if we haven't seen "START" yet then the only thing we want is START
+        if (!bStarted && ln != "START")
+            continue;
+        bStarted = true;                    // So...let's START
+        
+        // Is it the end?
+        if (ln == "END")
+            break;
+        
+        // Break up the line into individual parameters and work on its commands
+        std::vector<std::string> tokens = str_tokenize(ln, WHITESPACE);
+        if (tokens.size() != 2)
+            continue;
+        
+        // "BaseAircraft          B462_BASE"
+        // BaseAircraft should inform us about the a/c type: We use the text before the underscore
+        if (tokens[0] == "BaseAircraft") {
+            // TODO: Reading the BaseAircraft file could provide us with VERT_OFFSET (using MainGearLength + probably MainGearMaxComp)
+        }
+        else if (tokens[0] == "Operator") {
+            crit.icaoAirline = tokens[1];
+        }
+    }
+
+    // Close the .txt file
+    fAc.close();
+
+    // We can use the aircrft if we know its ICAO type
+    if (_icaoAcType.empty()) {
+        LOG_MSG(logWARN, WARN_WT_TXT_NO_AC ": %s", StripXPSysDir(pathTxt).c_str());
+        return WARN_WT_TXT_NO_AC;
+    } else {
+        // Verify the the .obj is available
+        if (ExistsFile(TOPOSIX(pathObj))) {
+            // finalize the CSL object
+            csl.xsbAircraftPath = _pathWT;
+            csl.xsbAircraftPath.pop_back();         // remove trailing separator
+            csl.xsbAircraftLn   = _fileNr;
+            csl.cslId = csl.shortId = _cslId;
+            
+            // find the package name and use ot for a full cslId
+            for (const auto& p: glob.mapCSLPkgs) {
+                if (p.second == _pathWT) {
+                    csl.cslId = p.first+ '/' + csl.shortId;
+                    break;
+                }
+            }
+            // human readable model name is last part of path plus short id
+            csl.CompModelName();
+
+            // add the one object file:
+            // save the path as an additional object to the model
+            // (Paths  to .obj are always stored in POSIX format)
+            csl.listObj.emplace_back(csl.GetId(), TOPOSIX(pathObj));
+            // Determine which file to load and if we need a copied .obj file
+            csl.listObj.back().DetermineWhichObjToLoad ();
+
+            // Add the match criteria and finally the model to our map
+            csl.AddMatchCriteria(_icaoAcType, crit, 0);
+            CSLModelsAdd(csl);                  // add the model to our list of models
+            return "";                          // success
+        } else {
+            // Test if there is a matching .wt0 file
+            const std::string wt0Path = _pathWT + WT_FOLDER_OBJ + XPLMGetDirectorySeparator()[0] + _cslId + ".wt0";
+            if (ExistsFile(wt0Path)) {
+                // there is a matching .wt0 file, which we unfortunately cannot process
+                LOG_MSG(logDEBUG, WARN_WT_WT0_SKIPPED ": %s", StripXPSysDir(wt0Path).c_str());
+                return WARN_WT_WT0_SKIPPED;
+            }
+            else {
+                LOG_MSG(logERR, ERR_WT_OBJ_NOT_FOUND ": %s", StripXPSysDir(pathObj).c_str());
+                return ERR_WT_OBJ_NOT_FOUND;
+            }
+        }
+    }
+}
+
+/// Process one World Traffic folder for importing OBJ8 models
+const char* CSLModelsProcessWTFolder (const std::string& _path)
+{
+    // for a good but concise message about read a/c we keep this map, keyed by ICAO type designator
+    std::map<std::string, int> acRead;
+    std::map<std::string, int> wt0Skipped;      // ...and how many .wt0 files we had to skip
+    int fileNr = 0;
+    const char* ret = "";
+    
+    // We need the contents of the AircraftTypes folders
+    std::list<std::string> filesTxt = GetDirContents(_path + WT_FOLDER_TXT);
+    filesTxt.sort();                    //...so that we process in alphabetical order
+    // If AircraftTypes is empty there's a problem
+    if (filesTxt.empty()) {
+        LOG_MSG(logERR, "%s: " ERR_WT_FOLDERS_ERR, StripXPSysDir(_path).c_str());
+        return ERR_WT_FOLDERS_ERR;
+    }
+    
+    // Loop the text files, each is to represent one aircraft
+    LOG_MSG(logDEBUG, DEBUG_PROCESSING_FILE, StripXPSysDir(_path).c_str());
+    for (const std::string& sTxt: filesTxt) {
+        // needs to be a .txt file
+        size_t posDot = sTxt.rfind('.');
+        if (posDot == std::string::npos || posDot < 1) continue;
+        std::string s = sTxt.substr(posDot);
+        if (str_tolower(s) != ".txt") continue;     // skip non-.txt files
+        if (sTxt.find('_') != std::string::npos) {
+            s = sTxt.substr(sTxt.find('_'));        // skip files ending on _BASE
+            if (str_tolower(s) == "_base.txt") continue;
+        }
+        
+        // try processing the file
+        std::string icaoType;
+        const char* r = CSLModelProcessWTFile (_path,
+                                               ++fileNr, sTxt.substr(0,posDot),
+                                               icaoType);
+        if (!r[0]) {                            // success?
+            // Count the aircraft types the we've read
+            if (!icaoType.empty())
+                acRead[icaoType]++;
+        } else {
+            if (strcmp(r, WARN_WT_WT0_SKIPPED) == 0)  // skipped .wt0 file?
+                wt0Skipped[icaoType]++;
+            else
+                if (!ret[0]) ret = r;          // remember the first error only
+        }
+    }
+    
+    // Log a message about the a/c we've read
+    if (!acRead.empty()) {
+        std::string acList;
+        int totAc = StrCntString(acRead, acList);
+        LOG_MSG(logINFO, INFO_ACTXT_DONE, totAc, acList.c_str(),
+                StripXPSysDir(_path).c_str());
+    }
+    
+    // Log a message about the a/c we've skipped
+    if (!wt0Skipped.empty()) {
+        std::string acList;
+        int totAc = StrCntString(wt0Skipped, acList);
+        LOG_MSG(logINFO, WARN_WT_WT0_SKIPPED_NUM, totAc, acList.c_str(),
+                StripXPSysDir(_path).c_str());
+    }
+    
+    return ret;
+}
 
 //
 // MARK: Global Functions
@@ -1080,7 +1304,14 @@ const char* CSLModelsLoad (const std::string& _path,
     // Now we can process each folder and read in the CSL models there
     for (const std::string& p: paths)
     {
-        const char* r = CSLModelsProcessAcFile(p);
+        // Is p a World Traffic path (to which we added the separator already)?
+        const char* r = "";
+        if (p.back() == XPLMGetDirectorySeparator()[0]) {
+            r = CSLModelsProcessWTFolder(p);
+        } else {
+            // Standard package defined by xsb_aircraft.txt:
+            r = CSLModelsProcessAcFile(p);
+        }
         if (r[0]) {                     // error?
             res = r;                    // keep it as function result (but continue with next path anyway)
             LOG_MSG(logWARN, "%s", res);// also report it to the log
