@@ -270,12 +270,14 @@ private:
 public:
     /// @brief Constructor creates a new aircraft object, which will be managed and displayed
     /// @exception XPMP2::XPMP2Error Mode S id invalid or duplicate, no model found during model matching
+    /// @param _callsign The ATC callsign of the aircraft (aircraft label shown in the 3D world next to the plane)
     /// @param _icaoType ICAO aircraft type designator, like 'A320', 'B738', 'C172'
     /// @param _icaoAirline ICAO airline code, like 'BAW', 'DLH', can be an empty string
     /// @param _livery Special livery designator, can be an empty string
     /// @param _modeS_id (optional) **Unique** identification of the plane [0x01..0xFFFFFF], e.g. the 24bit mode S transponder code. XPMP2 assigns an arbitrary unique number of not given
     /// @param _cslId (optional) specific unique model id to be used (package name/short id, as defined in the `OBJ8_AIRCRAFT` line)
-    Aircraft (const std::string& _icaoType,
+    Aircraft (const std::string& _callsign,
+              const std::string& _icaoType,
               const std::string& _icaoAirline,
               const std::string& _livery,
               XPMPPlaneID _modeS_id = 0,
@@ -292,13 +294,15 @@ public:
     
     /// @brief Creates a plane, only a valid operation if object was created using the default constructor
     /// @exception Tried on already defined object; XPMP2::XPMP2Error Mode S id invalid or duplicate, no model found during model matching
+    /// @param _callsign The ATC callsign of the aircraft (aircraft label shown in the 3D world next to the plane)
     /// @param _icaoType ICAO aircraft type designator, like 'A320', 'B738', 'C172'
     /// @param _icaoAirline ICAO airline code, like 'BAW', 'DLH', can be an empty string
     /// @param _livery Special livery designator, can be an empty string
     /// @param _modeS_id (optional) **Unique** identification of the plane [0x01..0xFFFFFF], e.g. the 24bit mode S transponder code. XPMP2 assigns an arbitrary unique number of not given
     /// @param _cslId (optional) specific unique model id to be used (package name/short id, as defined in the `OBJ8_AIRCRAFT` line)
     /// @param _pCSLModel (optional) The actual model to use (no matching or search by `_cslId` if model is given this way)
-    void Create (const std::string& _icaoType,
+    void Create (const std::string& _callsign,
+                 const std::string& _icaoType,
                  const std::string& _icaoAirline,
                  const std::string& _livery,
                  XPMPPlaneID _modeS_id = 0,

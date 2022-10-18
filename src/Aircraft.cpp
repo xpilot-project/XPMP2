@@ -187,7 +187,8 @@ void Aircraft::wakeTy::fillUpFrom(const wakeTy& o)
 //
 
 // Constructor creates a new aircraft object, which will be managed and displayed
-Aircraft::Aircraft(const std::string& _icaoType,
+Aircraft::Aircraft(const std::string& _callsign,
+                   const std::string& _icaoType,
                    const std::string& _icaoAirline,
                    const std::string& _livery,
                    XPMPPlaneID _modeS_id,
@@ -197,7 +198,7 @@ drawInfo({sizeof(drawInfo), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}),
 v(DR_NAMES.size(), 0.0f)
 {
     // Create the plane right away
-    Create(_icaoType, _icaoAirline, _livery, _modeS_id, _cslId);
+    Create(_callsign, _icaoType, _icaoAirline, _livery, _modeS_id, _cslId);
 }
 
 // Default constructor creates an empty, invalid(!) and invisible shell; call XPMP2::Aircraft::Create() to actually create a plane
@@ -234,7 +235,8 @@ Aircraft::~Aircraft ()
 
 
 // Creates a plane, only a valid operation if object was created using the default constructor
-void Aircraft::Create (const std::string& _icaoType,
+void Aircraft::Create (const std::string& _callsign,
+                       const std::string& _icaoType,
                        const std::string& _icaoAirline,
                        const std::string& _livery,
                        XPMPPlaneID _modeS_id,
@@ -243,6 +245,8 @@ void Aircraft::Create (const std::string& _icaoType,
 {
     // Must be called from XP's main thread only as we are calling XPLM SDK functions!!
     LOG_ASSERT(glob.IsXPThread());
+
+    label = _callsign;
     
     // Must not be used on already defined aircraft
     if (modeS_id > 0) {
@@ -898,7 +902,7 @@ XPCAircraft::XPCAircraft(const char* _icaoType,
                          const char* _livery,
                          XPMPPlaneID _modeS_id,
                          const char* _modelId) :
-Aircraft(_icaoType, _icaoAirline, _livery, _modeS_id,
+Aircraft("", _icaoType, _icaoAirline, _livery, _modeS_id,
          _modelId ? _modelId : "")
 {}
 
