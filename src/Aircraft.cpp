@@ -1,5 +1,5 @@
 /// @file       Aircraft.cpp
-/// @brief      XPCAircraft represents an aircraft as managed by XPMP2
+/// @brief      XPMP2::Aircraft represents an aircraft as managed by XPMP2
 /// @note       This class bases on and is compatible to the XPCAircraft wrapper
 ///             class provided with the original libxplanemp.
 ///             In XPMP2, however, this class is not a wrapper but the actual
@@ -216,11 +216,6 @@ Aircraft::~Aircraft ()
     XPMPSendNotification(*this, xpmp_PlaneNotification_Destroyed);
     RemoteAcRemove(*this);
     
-#ifdef INCLUDE_FMOD_SOUND
-    // Remove all sound
-    SoundRemoveAll();
-#endif
-    
     // Remove the instance
     DestroyInstances();
     
@@ -303,7 +298,9 @@ void Aircraft::Create (const std::string& _callsign,
     // Setup sound for this aircraft
     SoundSetup();
 #endif
-    
+    // Initialize contrail life time from global config
+    contrailLifeTime = unsigned(glob.contrailLifeTime);
+
     // add the aircraft to our global map and inform observers
     glob.mapAc.emplace(modeS_id,this);
     XPMPSendNotification(*this, xpmp_PlaneNotification_Created);
@@ -545,11 +542,8 @@ float Aircraft::FlightLoopCB(float _elapsedSinceLastCall, float, int _flCounter,
                     // If requested, clamp to ground, ie. make sure it is not below ground
                     if (ac.bClampToGround || glob.bClampAll)
                         ac.ClampToGround();
-                    // Update plane's distance/bearing every second only
-                    if (CheckEverySoOften(ac.camTimLstUpd, 1.0f, now)) {
-                        ac.UpdateDistBearingCamera(glob.posCamera);
-                        ac.ComputeMapLabel();
-                    }
+                    // Do some expensive stuff every second only
+                    ac.DoEverySecondUpdates(now);
                     // If required reset touch down animation
                     if (!std::isnan(ac.tsResetTouchDown) && (now >= ac.tsResetTouchDown)) {
                         ac.SetTouchDown(false);
@@ -559,10 +553,6 @@ float Aircraft::FlightLoopCB(float _elapsedSinceLastCall, float, int _flCounter,
                     ac.DoMove();
                     // Feed remote connections
                     RemoteAcEnqueue(ac);
-#ifdef INCLUDE_FMOD_SOUND
-                    // Update Sound
-                    ac.SoundUpdate();
-#endif
                 }
             }
             CATCH_AC(ac)
@@ -609,7 +599,25 @@ void Aircraft::DoMove ()
             // Move the instances (this is probably the single most important line of code ;-) )
             for (XPLMInstanceRef hInst: listInst)
                  XPLMInstanceSetPosition(hInst, &drawInfo, v.data());
+            // Move/create contrails
+            ContrailMove();
+#ifdef INCLUDE_FMOD_SOUND
+            // Update Sound
+            SoundUpdate();
+#endif
         }
+    }
+}
+
+// Processes once every second only stuff that doesn't require being computed every flight loop
+void Aircraft::DoEverySecondUpdates (float now)
+{
+    // Update plane's distance/bearing every second only
+    if (CheckEverySoOften(camTimLstUpd, 1.0f, now)) {
+        GetLocation(lat1s, lon1s, alt1s_ft);        // convert position
+        UpdateDistBearingCamera(glob.posCamera);
+        ComputeMapLabel();
+        ContrailAutoUpdate();
     }
 }
 
@@ -702,7 +710,16 @@ void Aircraft::DestroyInstances ()
         bDestroyInst = true;
         return;
     }
+    
+#ifdef INCLUDE_FMOD_SOUND
+    // Remove all sound
+    SoundRemoveAll();
+#endif
+    
+    // Remove Contrails
+    ContrailRemove();
 
+    // Remove aircraft instances
     if (!listInst.empty()) {
         while (!listInst.empty()) {
             XPLMInstanceRef hRef = listInst.back();
@@ -737,7 +754,9 @@ void Aircraft::SetLocation(double lat, double lon, double alt_f)
     // Weirdly, XPLMWorldToLocal expects points to double, while XPLMDrawInfo_t later on provides floats,
     // so we need intermediate variables
     double x, y, z;
-    XPLMWorldToLocal(lat, lon, alt_f * M_per_FT,
+    XPLMWorldToLocal(lat1s = lat,               // once we know the lat/lon location also store it locally
+                     lon1s = lon,
+                     (alt1s_ft = alt_f) * M_per_FT,
                      &x, &y, &z);
     
     // Copy to drawInfo
@@ -876,11 +895,6 @@ void Aircraft::SetVisible (bool _bVisible)
         ResetTcasTargetIdx();
         DestroyInstances();
     }
-    
-#ifdef INCLUDE_FMOD_SOUND
-    // (Un)mute Sound
-    SoundMuteAll(!bVisible);
-#endif
 }
 
 // Switch rendering of the CSL model on or off
@@ -1025,14 +1039,14 @@ namespace XPMP2 {
 
 /// We need to provide these functions for purely formal reasons.
 /// They are not actually _ever_ called as we provide the current dataRef values via XPLMInstanceSetPosition.
-/// So we don't bother provided any implementation
-static float obj_get_float(void * /*refcon*/)
+/// So we don't bother providing any implementation
+float obj_get_float(void * /*refcon*/)
 {
     return 0.0f;
 }
 
 /// See obj_get_float()
-static int obj_get_float_array(
+int obj_get_float_array(
         void *               /*refcon*/,
         float *              ,
         int                  /*inOffset*/,
