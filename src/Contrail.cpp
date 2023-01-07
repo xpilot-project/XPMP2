@@ -209,13 +209,21 @@ void Aircraft::ContrailMove ()
 void Aircraft::ContrailAutoUpdate ()
 {
     // --- Auto-create/remove contrails? ---
-    if (XPMPContrailsAutoEnabled() && !std::isnan(alt1s_ft)) {
-        const bool bInContrailAlt = glob.contrailAltMin_ft <= alt1s_ft && alt1s_ft <= glob.contrailAltMax_ft;
-        if (bInContrailAlt && !contrailNum)             // in contrail altitude but have no contrails?
-            ContrailTrigger();
-        else if (!bInContrailAlt && contrailNum > 0)    // not in contrail altitiude but have contrails?
-            ContrailRemove();
+    if(XPMPContrailsEnabled()) {
+        if (XPMPContrailsAutoEnabled() && !std::isnan(alt1s_ft)) {
+            const bool bInContrailAlt = glob.contrailAltMin_ft <= alt1s_ft && alt1s_ft <= glob.contrailAltMax_ft;
+            if (bInContrailAlt && !contrailNum)             // in contrail altitude but have no contrails?
+                ContrailTrigger();
+            else if (!bInContrailAlt && contrailNum > 0)    // not in contrail altitiude but have contrails?
+                ContrailRemove();
+            else if (contrailMulti != glob.contrailMulti)   // contrail multi option changed, force reset
+                ContrailRemove();
+        }
     }
+    else {
+        ContrailRemove();
+    }
+    contrailMulti = glob.contrailMulti;
 }
 
 //
@@ -306,4 +314,19 @@ bool XPMPContrailsAutoEnabled ()
 bool XPMPContrailsAvailable ()
 {
     return XPMP2::ghContrailObj != nullptr;
+}
+
+void XPMPEnableContrails(bool bEnable)
+{
+    XPMP2::glob.contrailEnabled = bEnable;
+}
+
+void XPMPEnableMultipleContrails(bool bEnable)
+{
+    XPMP2::glob.contrailMulti = bEnable;
+}
+
+bool XPMPContrailsEnabled()
+{
+    return XPMP2::glob.contrailEnabled;
 }

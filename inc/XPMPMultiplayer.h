@@ -372,6 +372,15 @@ bool XPMPContrailsAutoEnabled ();
 ///          could not be found or loaded.
 bool XPMPContrailsAvailable ();
 
+/// @brief Are contrails enabled?
+bool XPMPContrailsEnabled();
+
+/// @brief Enable/Disable jet aircraft contrails
+void XPMPEnableContrails(bool bEnable = true);
+
+/// @brief Enable/Disable one contrail per engine
+void XPMPEnableMultipleContrails(bool bEnable = true);
+
 /// @brief Used to set the light textures for old OBJ7 models.
 /// @note  Unsupported with XPMP2, will always return "OBJ7 format is no longer supported"
 [[deprecated("Unsupported feature, will always return 'OBJ7 format is no longer supported'")]]

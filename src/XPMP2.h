@@ -215,6 +215,7 @@ public:
     int             contrailAltMax_ft   = 45000;    ///< [ft] Auto Contrails: Maximum altitude
     int             contrailLifeTime    = 25;       ///< [s] Contrail default time to live
     bool            contrailMulti       = false;    ///< Auto-create multiple or just a single contrail?
+    bool            contrailEnabled     = true;     ///< Are contrails enabled?
 
     /// Config: Start Sound on startup?
     bool bSoundOnStartup = true;

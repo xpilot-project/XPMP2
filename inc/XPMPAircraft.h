@@ -251,6 +251,7 @@ public:
     unsigned contrailNum = 0;               ///< number of contrails requested
     unsigned contrailDist_m = 5;            ///< distance between several contrails and to the aircraft's centerline, in meter
     unsigned contrailLifeTime = 25;         ///< this aircraft's contrail's life time
+    bool     contrailMulti = false;         ///< are multiple contrails enabled for this aircraft?
     
     /// @brief Wake dataRef support
     /// @see https://developer.x-plane.com/article/plugin-traffic-wake-turbulence/
