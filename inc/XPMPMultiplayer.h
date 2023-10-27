@@ -446,6 +446,9 @@ const char* XPMPSoundAdd (const char* sName,
 ///       longer than immediately, make yourself a string copy.
 const char* XPMPSoundEnumerate (const char* prevName, const char** ppFilePath = nullptr);
 
+const char** XPMPGetAudioDevices(int* size);
+void XPMPSetAudioDevice(const std::string& deviceName);
+
 /// @}
 
 /// @name Sound Macros

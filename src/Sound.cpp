@@ -99,7 +99,7 @@ constexpr int FMOD_NUM_VIRT_CHANNELS = 1000;        ///< Number of virtual chann
 constexpr float FMOD_3D_MAX_DIST     = 10000.0f;    ///< Value used for 3D max distance, which doesn't have much of a function for the inverse roll-off model used here
 constexpr float FMOD_LOW_PASS_GAIN   = 0.2f;        ///< Gain used when activating Low Pass filter
 
-static FMOD_SYSTEM* gpFmodSystem = nullptr;         ///< FMOD system
+extern FMOD_SYSTEM* gpFmodSystem = nullptr;         ///< FMOD system
 static unsigned int gFmodVer = 0;                   ///< FMOD version
 
 /// Use pre-v2 FMOD version structures?
@@ -1023,6 +1023,51 @@ const char* XPMPSoundEnumerate (const char* prevName, const char** ppFilePath)
         if (ppFilePath) *ppFilePath = sndIter->second.filePath.c_str();
         return sndIter->first.c_str();
     }
+}
+
+void XPMPSetAudioDevice(const std::string& deviceName)
+{
+    int numDevices = 0;
+    if (FMOD_System_GetNumDrivers(XPMP2::gpFmodSystem, &numDevices) == FMOD_OK)
+    {
+        for (int i = 0; i < numDevices; i++)
+        {
+            char name[256];
+            if (FMOD_System_GetDriverInfo(XPMP2::gpFmodSystem, i, name, sizeof(name), nullptr, nullptr, nullptr, nullptr) == FMOD_OK)
+            {
+                if (strcmp(deviceName.c_str(), name) == 0)
+                {
+                    FMOD_System_SetDriver(XPMP2::gpFmodSystem, i);
+                }
+            }
+        }
+    }
+}
+
+const char** XPMPGetAudioDevices(int* size)
+{
+    if (XPMP2::gpFmodSystem == nullptr)
+        return nullptr;
+
+    int numDevices = 0;
+    if (FMOD_System_GetNumDrivers(XPMP2::gpFmodSystem, &numDevices) == FMOD_OK)
+    {
+        *size = numDevices;
+        const auto result = new const char* [numDevices];
+
+        for (int i = 0; i < numDevices; i++)
+        {
+            char name[256];
+            if (FMOD_System_GetDriverInfo(XPMP2::gpFmodSystem, i, name, sizeof(name), nullptr, nullptr, nullptr, nullptr) == FMOD_OK)
+            {
+                result[i] = strdup(name);
+            }
+        }
+
+        return result;
+    }
+
+    return nullptr;
 }
 
 #endif // INCLUDE_FMOD_SOUND
