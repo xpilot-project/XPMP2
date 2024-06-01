@@ -45,10 +45,6 @@
 // Only if we want Sound Support
 #ifdef INCLUDE_FMOD_SOUND
 
-// FMOD header files only here in this module!
-// This one includes everything
-#include "fmod_errors.h"
-
 namespace XPMP2 {
 
 FMOD_VECTOR FmodHeadPitch2Vec (const float head, const float pitch);
@@ -99,7 +95,7 @@ constexpr int FMOD_NUM_VIRT_CHANNELS = 1000;        ///< Number of virtual chann
 constexpr float FMOD_3D_MAX_DIST     = 10000.0f;    ///< Value used for 3D max distance, which doesn't have much of a function for the inverse roll-off model used here
 constexpr float FMOD_LOW_PASS_GAIN   = 0.2f;        ///< Gain used when activating Low Pass filter
 
-extern FMOD_SYSTEM* gpFmodSystem = nullptr;         ///< FMOD system
+FMOD_SYSTEM* gpFmodSystem;                          ///< FMOD system
 static unsigned int gFmodVer = 0;                   ///< FMOD version
 
 /// Use pre-v2 FMOD version structures?

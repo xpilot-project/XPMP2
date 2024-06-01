@@ -37,7 +37,6 @@
 #include "XPMPMultiplayer.h"
 #include "XPMPAircraft.h"
 #include "XPCAircraft.h"
-#include "XPMPPlaneRenderer.h"
 #include "XPMPRemote.h"
 
 // Standard C

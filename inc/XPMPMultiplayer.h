@@ -802,34 +802,8 @@ void            XPMPUnregisterPlaneNotifierFunc(XPMPPlaneNotifier_f     inFunc,
 
 /// @}
 
-/************************************************************************************
- * MARK: PLANE RENDERING API (unsued in XPMP2)
- ************************************************************************************/
-
-/// @brief The original libxplanemp allowed to override rendering; no longer supported
-/// @deprecated Unsupported in XPMP2. The type definition is available to stay
-///             compile-time compatible, but the callback will not be called.
-[[deprecated("Unsupported, will not be called")]]
-typedef void (* XPMPRenderPlanes_f)(
-                                    int                         inIsBlend,
-                                    void *                      inRef);
-
 /// @name Plane Rendering API
 /// @{
-
-/// @brief The original libxplanemp allowed to override rendering; no longer supported
-/// @deprecated Unsupported in XPMP2. The function is available to stay compile-time compatible,
-///             but it does nothing.
-[[deprecated("Unsupported, doesn't do anything")]]
-void        XPMPSetPlaneRenderer(XPMPRenderPlanes_f         inRenderer,
-                                 void *                         inRef);
-
-
-/// @brief Legacy debug-support function, no longer supported
-/// @deprecated No longer supported as rendering is done by X-Plane's instancing
-[[deprecated("Unsupported, doesn't do anything")]]
-void        XPMPDumpOneCycle(void);
-
 
 /// Enable or disable drawing of labels with the aircraft
 void XPMPEnableAircraftLabels (bool _enable = true);

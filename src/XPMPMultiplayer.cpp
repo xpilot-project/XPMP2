@@ -578,20 +578,3 @@ void XPMPSendNotification (const Aircraft& plane, XPMPPlaneNotification _notific
                n.refcon);
 }
 }
-
-
-//
-// MARK: PLANE RENDERING API
-//       Completely unsupported in XPMP2
-//
-
-// This function would set the plane renderer.
-void        XPMPSetPlaneRenderer(XPMPRenderPlanes_f, void *)
-{
-    LOG_MSG(logERR, "XPMPSetPlaneRenderer() is NOT SUPPORTED in XPMP2");
-}
-
-void XPMPDumpOneCycle(void)                 {}
-void XPMPInitDefaultPlaneRenderer(void)     {}
-void XPMPDefaultPlaneRenderer(int)          {}
-void XPMPDeinitDefaultPlaneRenderer(void)   {}

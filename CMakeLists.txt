@@ -144,7 +144,6 @@ add_library(XPMP2 STATIC
     inc/XPMPAircraft.h
     inc/XPMPMultiplayer.h
     inc/XPMPRemote.h
-    inc/XPMPPlaneRenderer.h
     src/2D.h
     src/2D.cpp
     src/AIMultiplayer.h
@@ -212,7 +211,6 @@ if(APPLE)
         ../inc/XPCAircraft.h
         ../inc/XPMPAircraft.h
         ../inc/XPMPMultiplayer.h
-        ../inc/XPMPPlaneRenderer.h
         ../inc/XPMPRemote.h
     )
 

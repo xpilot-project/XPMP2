@@ -29,8 +29,13 @@
 // Only included if specified. Understand FMOD licensing and attribution first!
 #ifdef INCLUDE_FMOD_SOUND
 
+// FMOD header files only here in this module!
+// This one includes everything
+#include "fmod_errors.h"
+
 namespace XPMP2 {
 
+extern FMOD_SYSTEM* gpFmodSystem;
 
 //
 // MARK: Global Functions
