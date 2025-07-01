@@ -75,8 +75,7 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set_property(GLOBAL PROPERTY CXX_STANDARD_REQUIRED 17)
 set_property(GLOBAL PROPERTY CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 ################################################################################
 # Compile Options
@@ -106,26 +105,6 @@ else()
 
     # Makes symbols non-exported by default.
     add_compile_options(-fvisibility=hidden)
-endif()
-
-
-# Debug vs Release build
-if(CMAKE_BUILD_TYPE MATCHES "Debug")
-    add_compile_definitions(DEBUG=1)
-    if (MSVC)
-        add_compile_options(/Zi)
-    else()
-        add_compile_options(-O0 -g -fPIC)
-    endif()
-else()
-    add_compile_definitions(NDEBUG=1)
-    if(MSVC)
-        # Fast code, symbols into separate .pdb file, no global optimization (as it produces huge files)
-        add_compile_options(/Zi /O2 /GL-)
-    else()
-        # Use position-independent code and highest optimization level
-        add_compile_options(-O3 -fPIC)
-    endif()
 endif()
 
 # Mingw Threads (if not already defined by an outer target)
@@ -224,5 +203,17 @@ if(APPLE)
         VERSION ${PROJECT_VERSION}.0
         SOVERSION ${PROJECT_VERSION}.0
         PUBLIC_HEADER "${XPMP2_PUB_HEADERS}"
+    )
+endif()
+
+if(MSVC)
+    target_compile_options(XPMP2 PRIVATE
+        $<$<CONFIG:Debug>:/Zi>
+        $<$<CONFIG:Release>:/Zi /O2 /GL->
+    )
+else()
+    target_compile_options(XPMP2 PRIVATE
+        $<$<CONFIG:Debug>:-O0 -g -fPIC>
+        $<$<CONFIG:Release>:-O3 -fPIC>
     )
 endif()
